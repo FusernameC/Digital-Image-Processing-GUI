@@ -4,6 +4,7 @@ from tkinter import *
 from tkinter import filedialog
 from PIL import ImageTk, Image
 import os
+import ctypes
 
 import cv2
 import numpy as np
@@ -11,10 +12,23 @@ import numpy as np
 ####### Homework 1 ######
 
 def Homework1Button():
-    global frameToolbox
+    global frameToolboxOuter
+    
     # Clear toolbox
-    for widget in frameToolbox.winfo_children():
+    for widget in frameToolboxOuter.winfo_children():
         widget.destroy()
+        
+    frameToolbox = Frame(frameToolboxOuter)
+    frameToolbox.columnconfigure(0, weight=1)
+    frameToolboxOuter.create_window((0, 0), window=frameToolbox, anchor='nw', tags='frame')
+    
+    def onFrameConfigure(frameToolboxOuter):
+        '''Reset the scroll region to encompass the inner frame'''
+        frameToolboxOuter.configure(scrollregion=frameToolboxOuter.bbox("all"))
+        frameToolboxOuter.itemconfig('frame', width=frameToolboxOuter.winfo_width()-5)
+    frameToolbox.bind("<Configure>", lambda event, frameToolboxOuter=frameToolboxOuter: onFrameConfigure(frameToolboxOuter))
+    
+    
     # Add red layer button
     buttonRedLayer=Button(frameToolbox, text="Red Layer", command=lambda: RGBButton("r"))
     buttonRedLayer.grid(row=0, column=0, sticky="ew")
@@ -107,7 +121,7 @@ def openFolder():
     formats=[".png", ".jpg", ".jpeg", ".bmp"]
     tempDir = filedialog.askdirectory()
     if tempDir != "":
-        directory = filedialog.askdirectory()
+        directory = tempDir
         fileList = os.listdir(directory)
         # Clear frame
         for widget in frameItems.winfo_children():
@@ -262,49 +276,88 @@ def CropButton(crop_size):
         labelImage.image=imgPil
     
 ####### Homework 2 ######
+## Visual
 def Homework2Button():
+    global gamma, cgamma
+    gamma , cgamma = 0.1, 0 
+    global r1PL, s1PL, r2PL, s2PL
+    r1PL, s1PL, r2PL, s2PL = 0, 0, 0, 0
+    global kGauss, sGauss
+    kGauss, sGauss = 1, 0
+    global kUM, sUM
+    kUM, sUM = 1, 0
+    global knHB, sHB, kHB
+    knHB, sHB, kHB = 1, 0, 1
+    
+    global frameToolboxOuter
     global frameToolbox
-    global gamma
-    gamma = 0.1
-    global cgamma
-    cgamma = 0
+    
     # Clear toolbox
-    for widget in frameToolbox.winfo_children():
+    for widget in frameToolboxOuter.winfo_children():
         widget.destroy()
+        
+    frameToolbox = Frame(frameToolboxOuter)
+    frameToolbox.columnconfigure(0, weight=1)
+    frameToolboxOuter.create_window((0, 0), window=frameToolbox, anchor='nw', tags='frame')
+    
+    def onFrameConfigure(frameToolboxOuter):
+        '''Reset the scroll region to encompass the inner frame'''
+        frameToolboxOuter.configure(scrollregion=frameToolboxOuter.bbox("all"))
+        frameToolboxOuter.itemconfig('frame', width=frameToolboxOuter.winfo_width()-5)
+    frameToolbox.bind("<Configure>", lambda event, frameToolboxOuter=frameToolboxOuter: onFrameConfigure(frameToolboxOuter))
     # Add negative button
     buttonNegative=Button(frameToolbox, text="Negative", command=lambda: NegativeButton())
     buttonNegative.grid(row=0, column=0, sticky="news")
     # Add log transformation scale
-    frameLog = Frame(frameToolbox, borderwidth=1, relief='solid')
-    frameLog.grid(row=1, column=0, sticky="news")
-    frameLog.columnconfigure(0, weight=1)
-    labelLog = Label(frameLog, text="Log Transformation")
-    labelLog.grid(row=0, column=0, sticky="w")
-    frameCLogValues = Frame(frameLog)
-    frameCLogValues.grid(row=1, column=0, sticky="news")
-    labelCLog = Label(frameCLogValues, text="C")
-    labelCLog.pack(side=LEFT)
-    scaleCLog=Scale(frameCLogValues, from_=0, to=45, orient=HORIZONTAL, command=LogTransformScale)
-    scaleCLog.pack(side=RIGHT, expand=True, fill=X)
+    createSliderElements("Log Transformation", ["C"], LogTransformScale, [0], [[1, 45, 1, 1]], 1)
     # Add power law (gamma) transformation
-    frameGamma = Frame(frameToolbox, borderwidth=1, relief='solid')
-    frameGamma.grid(row=2, column=0, sticky="news")
-    frameGamma.columnconfigure(0, weight=1)
-    labelGamma = Label(frameGamma, text="Power Law (Gamma) Transformation")
-    labelGamma.grid(row=0, column=0, sticky="w")
-    frameCGammaValues = Frame(frameGamma)
-    frameCGammaValues.grid(row=1, column=0, sticky="news")
-    labelCGamma = Label(frameCGammaValues, text="C")
-    labelCGamma.pack(side=LEFT)
-    scaleCGamma=Scale(frameCGammaValues, from_=0, to=45, orient=HORIZONTAL, command=lambda value: GammaTransformScale(value, gamma))
-    scaleCGamma.pack(side=RIGHT, expand=True, fill=X)
-    frameGammaGammaValues = Frame(frameGamma)
-    frameGammaGammaValues.grid(row=2, column=0, sticky="news")
-    labelGammaGamma = Label(frameGammaGammaValues, text="Gamma")
-    labelGammaGamma.pack(side=LEFT)
-    scaleGammaGamma=Scale(frameGammaGammaValues, from_=0.1, to=10, digits=3, resolution=0.1, orient=HORIZONTAL, command=lambda value: GammaTransformScale(cgamma, float(value)))
-    scaleGammaGamma.pack(side=RIGHT, expand=True, fill=X)
+    createSliderElements("Power Law (Gamma) Transformation", ["C", "Gamma"], GammaTransformScale, [cgamma, gamma], [[1, 45, 1, 1], [0.1, 10, 3, 0.1]], 2)
+    # Add piecewise-linear transformation
+    createSliderElements("Piecewise-Linear Transformation", ["R1", "S1", "R2", "S2"], piecewiseLinearTransform, [r1PL, s1PL, r2PL, s2PL], [[0, 255, 1, 1], [0, 255, 1, 1], [0, 255, 1, 1], [0, 255, 1, 1]], 3)
+    # Add histogram equalization
+    buttonHistogramEqualization=Button(frameToolbox, text="Histogram Equalization", command=lambda: histogramEqualization())
+    buttonHistogramEqualization.grid(row=4, column=0, sticky="news")
+    # Add box filter
+    createSliderElements("Smoothing(Box Filter)", ["Kernel size"], boxFilter, [0], [[1, 50, 1, 1]], 6)
+    # Add Gaussian filter
+    createSliderElements("Smoothing(Gaussian Filter)", ["Kernel size", "Sigma"], gaussianFilter, [kGauss, sGauss], [[1, 50, 1, 2], [0, 10, 1, 1]], 7)
+    # Add median filter
+    createSliderElements("Smoothing (Median Filter)", ["Kernel size"], medianFilter, [0], [[1, 50, 1, 1]], 8)
+    # Add min filter
+    createSliderElements("Smoothing (Min Filter)", ["Kernel size"], minFilter, [0], [[1, 50, 1, 1]], 9)
+    # Add max filter
+    createSliderElements("Smoothing (Max Filter)", ["Kernel size"], maxFilter, [0], [[1, 50, 1, 1]], 10)
+    # Add midpoint filter
+    createSliderElements("Smoothing (Midpoint Filter)", ["Kernel size"], midpointFilter, [0], [[1, 50, 1, 1]], 11)
+    # Add Laplacian filter
+    createSliderElements("Sharpening (Laplacian Filter)", ["Kernel size"], laplacianFilter, [0], [[1, 10, 1, 1]], 12)
+    # Add unsharp masking filter
+    createSliderElements("Smoothing (Unsharp Masking Filter)", ["Kernel size", "Sigma"], unsharpMasking, [kUM, sUM], [[1, 50, 1, 2], [0, 10, 1, 1]], 13)
+    # Add high boost filter
+    createSliderElements("Smoothing (High Boost Filter)", ["Kernel size", "Sigma", "K"], highBoostFilter, [knHB, sHB, kHB], [[1, 50, 1, 2], [0, 10, 1, 1], [1, 10, 1, 1]], 14)
     
+def createSliderElements(name, sliderNames, function, args, scaleValues, row):
+    def replace(l, e, i):
+        tempList = l
+        tempList[i] = e
+        return tempList
+    global frameToolbox
+    frameMain = Frame(frameToolbox, borderwidth=1, relief='solid')
+    frameMain.grid(row=row, column=0, sticky="news")
+    frameMain.columnconfigure(0, weight=1)
+    labelMain = Label(frameMain, text=name)
+    labelMain.grid(row=0, column=0, sticky="w")
+    i = 0
+    for sliderName in sliderNames:
+        frameSlider = Frame(frameMain)
+        frameSlider.grid(row=i+1, column=0, sticky="news")
+        label = Label(frameSlider, text=sliderName)
+        label.pack(side=LEFT)
+        scale = Scale(frameSlider, from_=scaleValues[i][0], to=scaleValues[i][1], digits=scaleValues[i][2], resolution=scaleValues[i][3], orient=HORIZONTAL, command=lambda value, i = i: function(*replace(args, value, i)))
+        scale.pack(side=RIGHT, expand=True, fill=X)
+        i+=1
+    
+## Algorithm
 def NegativeButton():
     global labelImage
     global itemImg
@@ -360,7 +413,7 @@ def GammaTransformScale(c, g):
         # Get image
         img = convertPILToCV2(itemImg)
         # Transformation
-        img_gamma = np.float16(c) * 255*(img / 255) ** gamma
+        img_gamma = np.float16(c) * 255*(img / 255) ** float(gamma)
         img_gamma = np.array(img_gamma, dtype = np.uint8)
         # Convert from BRG to RGB
         imgConverted = cv2.cvtColor(img_gamma, cv2.COLOR_BGR2RGB)
@@ -373,6 +426,259 @@ def GammaTransformScale(c, g):
         labelImage.image=imgPil
         cgamma = c
         gamma = g
+        
+def piecewiseLinearTransform(r1, s1, r2, s2):
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    global r1PL, s1PL, r2PL, s2PL
+    breakLoop = True
+    if itemImgEdit != None:
+        # Get image
+        img = convertPILToCV2(itemImg)
+        # Convert image to grayscale
+        img = cv2.cvtColor(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), cv2.COLOR_RGB2GRAY)
+        # Perform contrast stretching
+        imgConverted = img
+        imgConverted[np.logical_and(imgConverted >= 0, imgConverted <= r1)] = (s1/r1 * imgConverted[np.logical_and(imgConverted >= 0, imgConverted <= r1)]) if (abs(r1) > 0) else (s1)
+        imgConverted[np.logical_and(imgConverted > r1, imgConverted <= r2)] = (s2 - s1)/(r2 - r1) * (imgConverted[np.logical_and(imgConverted > r1, imgConverted <= r2)] - r1) + s1
+        imgConverted[np.logical_and(imgConverted > r2, imgConverted <= 255)] = ((255 - s2)/(255 - r2)) * (imgConverted[np.logical_and(imgConverted > r2, imgConverted <= 255)] - r2) + s2
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+        r1PL, s1PL, r2PL, s2PL = r1, s1, r2, s2
+        
+def histogramEqualization():
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    breakLoop = True
+    if itemImgEdit != None:
+        # Get image
+        img = convertPILToCV2(itemImg)
+        # Convert image to grayscale
+        img = cv2.cvtColor(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), cv2.COLOR_RGB2GRAY)
+        #Perform histogram equalization
+        imgConverted = cv2.equalizeHist(img)
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+        
+def boxFilter(ksize):
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    breakLoop = True
+    if itemImgEdit != None:
+        # Get image
+        img = convertPILToCV2(itemImg)
+        # Perform box filtering
+        imgConverted = cv2.boxFilter(img, ddepth=-1, ksize=(int(ksize), int(ksize)))
+        # Convert from BRG to RGB
+        imgConverted = cv2.cvtColor(imgConverted, cv2.COLOR_BGR2RGB)
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+        
+def gaussianFilter(ksize, sigma):
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    global kGauss, sGauss
+    breakLoop = True
+    if itemImgEdit != None:
+        # Get image
+        img = convertPILToCV2(itemImg)
+        # Perform gaussian filtering
+        imgConverted = cv2.GaussianBlur(img, ksize=(int(ksize), int(ksize)), sigmaX=int(sigma))
+        # Convert from BRG to RGB
+        imgConverted = cv2.cvtColor(imgConverted, cv2.COLOR_BGR2RGB)
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+        kGauss, sGauss = ksize, sigma
+
+def medianFilter(ksize):
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    breakLoop = True
+    if itemImgEdit != None:
+        # Get image
+        img = convertPILToCV2(itemImg)
+        # Perform median filtering
+        imgConverted = cv2.medianBlur(img, ksize=int(ksize))
+        # Convert from BRG to RGB
+        imgConverted = cv2.cvtColor(imgConverted, cv2.COLOR_BGR2RGB)
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+    
+def minFilter(ksize):
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    breakLoop = True
+    if itemImgEdit != None:
+        # Get image
+        img = convertPILToCV2(itemImg)
+        # Perform min filtering
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (int(ksize), int(ksize)))
+        imgConverted = cv2.erode(img, kernel=kernel)
+        # Convert from BRG to RGB
+        imgConverted = cv2.cvtColor(imgConverted, cv2.COLOR_BGR2RGB)
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+        
+def maxFilter(ksize):
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    breakLoop = True
+    if itemImgEdit != None:
+        # Get image
+        img = convertPILToCV2(itemImg)
+        # Perform max filtering
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (int(ksize), int(ksize)))
+        imgConverted = cv2.dilate(img, kernel=kernel)
+        # Convert from BRG to RGB
+        imgConverted = cv2.cvtColor(imgConverted, cv2.COLOR_BGR2RGB)
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+    
+def midpointFilter(ksize):
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    breakLoop = True
+    if itemImgEdit != None:
+        # Get image
+        img = convertPILToCV2(itemImg)
+        # Perform midpoint filtering
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (int(ksize), int(ksize)))
+        imgMin = cv2.erode(img, kernel=kernel)
+        imgMax = cv2.dilate(img, kernel=kernel)
+        imgConverted = cv2.addWeighted(imgMin, 0.5, imgMax, 0.5, 0)
+        # Convert from BRG to RGB
+        imgConverted = cv2.cvtColor(imgConverted, cv2.COLOR_BGR2RGB)
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+        
+def laplacianFilter(ksize):
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    breakLoop = True
+    if itemImgEdit != None:
+        # Get image
+        img = convertPILToCV2(itemImg)
+        # Perform laplacian filtering
+        laplacian = cv2.Laplacian(img, ddepth=-1, ksize=int(ksize))
+        imgConverted = cv2.subtract(img, laplacian)
+        # Convert from BRG to RGB
+        imgConverted = cv2.cvtColor(imgConverted, cv2.COLOR_BGR2RGB)
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+    
+def unsharpMasking(ksize, sigma):
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    global kUM, sUM
+    breakLoop = True
+    if itemImgEdit != None:
+        # Get image
+        img = convertPILToCV2(itemImg)
+        # Perform unsharp mask filtering
+        gaussian = cv2.GaussianBlur(img, ksize=(int(ksize), int(ksize)), sigmaX=int(sigma))
+        mask = cv2.subtract(img, gaussian)
+        imgConverted = cv2.add(img, mask)
+        # Convert from BRG to RGB
+        imgConverted = cv2.cvtColor(imgConverted, cv2.COLOR_BGR2RGB)
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+        kUM, sUM = ksize, sigma
+        
+def highBoostFilter(ksize, sigma, k):
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    global knHB, sHB, kHB
+    if itemImgEdit != None:
+        # Get image
+        img = convertPILToCV2(itemImg)
+        # Perform high boost filtering
+        gaussian = cv2.GaussianBlur(img, ksize=(int(ksize), int(ksize)), sigmaX=int(sigma))
+        mask = cv2.subtract(img, gaussian)
+        imgConverted = img
+        for i in range(int(k)):
+            imgConverted = cv2.add(imgConverted, mask)
+        # Convert from BRG to RGB
+        imgConverted = cv2.cvtColor(imgConverted, cv2.COLOR_BGR2RGB)
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+        knHB, sHB, kHB = ksize, sigma, k
 
 ####### Main ######
 if __name__ == "__main__":
@@ -388,12 +694,13 @@ if __name__ == "__main__":
     root.title('Image viewer')
     
     # Adjust size
-    width = 1600
-    height = 600
+    width = int((1600)/1920*root.winfo_screenwidth())
+    height = int((600)/1080*root.winfo_screenheight())
     root.geometry(str(width) + "x" + str(height))
      
     # Set minimum window size value
     root.minsize(width, height)
+    root.state('zoomed')
      
     # Column and row amount
     row = 4
@@ -429,8 +736,8 @@ if __name__ == "__main__":
     buttonOpenFolder=Button(root, text="Open Folder", command=lambda: openFolder())
     buttonOpenFolder.grid(row=2, column=0, sticky="news")
     # Save image button
-    buttonOpenFolder=Button(root, text="Save Image", command=lambda: saveImage())
-    buttonOpenFolder.grid(row=2, column=1, sticky="news")
+    buttonSaveImage=Button(root, text="Save Image", command=lambda: saveImage())
+    buttonSaveImage.grid(row=2, column=1, sticky="news")
     # Homework 1 button
     buttonHomework1=Button(root, text="Homework 1", command=lambda: Homework1Button())
     buttonHomework1.grid(row=3, column=0, sticky="news")
@@ -439,9 +746,19 @@ if __name__ == "__main__":
     buttonHomework2.grid(row=3, column=1, sticky="news")
     
     #Toolbox
-    frameToolbox = Frame(root, borderwidth=1, relief='solid')
-    frameToolbox.grid(row=0, column=column-1, rowspan=row, sticky="news")
-    frameToolbox.columnconfigure(0, weight=1)
+    frameToolboxContainer= Frame(root, borderwidth=1, relief='solid')
+    frameToolboxContainer.grid(row=0, column=column-1, rowspan=row, sticky="news")
+    frameToolboxOuter = Canvas(frameToolboxContainer)
+    frameToolboxOuter.columnconfigure(0, weight=1)
+    frameToolboxOuter.pack(side='left', fill='both', expand=True)
+    
+    scrollbarToolbox=Scrollbar(frameToolboxContainer)
+    scrollbarToolbox.pack(side='right', fill='both')
+
+    frameToolboxOuter.config(yscrollcommand=scrollbarToolbox.set)
+    scrollbarToolbox.config(command=frameToolboxOuter.yview)
+    frameToolboxOuter.config(scrollregion=frameToolboxOuter.bbox("all"))
+    
     
     # Menu
     # menubar = Menu(root)
