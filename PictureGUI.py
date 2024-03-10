@@ -13,6 +13,7 @@ import numpy as np
 
 def Homework1Button():
     global frameToolboxOuter
+    global frameToolbox
     
     # Clear toolbox
     for widget in frameToolboxOuter.winfo_children():
@@ -54,8 +55,9 @@ def convertRawToTk(rawImage):
 
 def convertPILToCV2(pil_image):
     open_cv_image = np.array(pil_image)
-    # Convert RGB to BGR
-    open_cv_image = cv2.cvtColor(open_cv_image, cv2.COLOR_BGR2RGB)
+    if open_cv_image.dtype != bool:
+        # Convert RGB to BGR
+        open_cv_image = cv2.cvtColor(open_cv_image, cv2.COLOR_RGB2BGR)
     return open_cv_image
 
 def resizeImagePIL(image):
@@ -433,6 +435,10 @@ def piecewiseLinearTransform(r1, s1, r2, s2):
     global itemImgEdit
     global breakLoop
     global r1PL, s1PL, r2PL, s2PL
+    r1 = int(r1)
+    s1 = int(s1)
+    r2 = int(r2)
+    s2 = int(s2)
     breakLoop = True
     if itemImgEdit != None:
         # Get image
@@ -680,6 +686,547 @@ def highBoostFilter(ksize, sigma, k):
         labelImage.image=imgPil
         knHB, sHB, kHB = ksize, sigma, k
 
+####### Classwork 2 ######
+def Classwork2Button():
+    global frameToolboxOuter
+    global frameToolbox
+    global nLPB, D0LPB
+    nLPB, D0LPB = 1, 1
+    global nHPB, D0HPB
+    nHPB, D0HPB = 1, 1
+    
+    # Clear toolbox
+    for widget in frameToolboxOuter.winfo_children():
+        widget.destroy()
+        
+    frameToolbox = Frame(frameToolboxOuter)
+    frameToolbox.columnconfigure(0, weight=1)
+    frameToolboxOuter.create_window((0, 0), window=frameToolbox, anchor='nw', tags='frame')
+    
+    def onFrameConfigure(frameToolboxOuter):
+        '''Reset the scroll region to encompass the inner frame'''
+        frameToolboxOuter.configure(scrollregion=frameToolboxOuter.bbox("all"))
+        frameToolboxOuter.itemconfig('frame', width=frameToolboxOuter.winfo_width()-5)
+    frameToolbox.bind("<Configure>", lambda event, frameToolboxOuter=frameToolboxOuter: onFrameConfigure(frameToolboxOuter))
+    
+    # Add lowpass ideal filter 
+    createSliderElements("Lowpass Ideal Filter", ["D0"], lowpassIdealFilter, [0], [[1, 200, 1, 1]], 0)
+    # Add lowpass butterworth filter
+    createSliderElements("Lowpass Butterworth Filter", ["n", "D0"], lowpassButterworthFilter, [nLPB, D0LPB], [[1, 50, 1, 1], [1, 200, 1, 1]], 1)
+    # Add lowpass Gaussian filter 
+    createSliderElements("Lowpass Gaussian Filter", ["D0"], lowpassGaussianFilter, [0], [[1, 200, 1, 1]], 2)
+    # Add highpass ideal filter
+    createSliderElements("Highpass Ideal Filter", ["D0"], highpassIdealFilter, [0], [[1, 200, 1, 1]], 3)
+    #Add highpass butterworth filter
+    createSliderElements("Highpass Butterworth Filter", ["n", "D0"], highpassButterworthFilter, [nHPB, D0HPB], [[1, 50, 1, 1], [1, 200, 1, 1]], 4)
+    # Add lowpass Gaussian filter 
+    createSliderElements("Highpass Gaussian Filter", ["D0"], highpassGaussianFilter, [0], [[1, 200, 1, 1]], 5)
+    # Add apply button
+    buttonApply=Button(frameToolbox, text="Apply", command=lambda: applyButton())
+    buttonApply.grid(row=10, column=0, sticky="ews")
+
+def lowpassIdealFilter(D0):
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    if itemImgEdit != None:
+        # Get image
+        img = convertPILToCV2(itemImg)
+        # Divide into 3 channels
+        channels = cv2.split(img)
+        newChannels = []
+        # Perform filter on each channel
+        for channel in channels:
+            # Perform filter
+            F = np.fft.fft2(channel)
+            F = np.fft.fftshift(F)
+            M, N = np.array(channel).shape
+            
+            u = np.arange(0, M)-M/2
+            v = np.arange(0, N)-N/2
+            [V, U] = np.meshgrid(v, u)
+            D = np.sqrt(np.power(U, 2) + np.power(V, 2))
+            H = np.array(D<=int(D0), 'float')
+            G = H*F
+            
+            G = np.fft.ifftshift(G)
+            newChannels.append(np.real(np.fft.ifft2(G)))
+        # Merge channels
+        imgConverted = cv2.merge(newChannels).astype(np.uint8)
+        # Convert from BRG to RGB
+        imgConverted = cv2.cvtColor(imgConverted, cv2.COLOR_BGR2RGB)
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+        
+def lowpassButterworthFilter(n, D0):
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    global nLP, D0LP
+    if itemImgEdit != None:
+        # Get image
+        img = convertPILToCV2(itemImg)
+        # Divide into 3 channels
+        channels = cv2.split(img)
+        newChannels = []
+        # Perform filter on each channel
+        for channel in channels:
+            # Perform filter
+            F = np.fft.fft2(channel)
+            F = np.fft.fftshift(F)
+            M, N = channel.shape
+            
+            u = np.arange(0, M)-M/2
+            v = np.arange(0, N)-N/2
+            [V, U] = np.meshgrid(v, u)
+            D = np.sqrt(np.power(U, 2) + np.power(V, 2))
+            H = 1/np.power(1 + (D/int(D0)), (2*int(n)))
+            G = H*F
+            
+            G = np.fft.ifftshift(G)
+            newChannels.append(np.real(np.fft.ifft2(G)))
+        # Merge channels
+        imgConverted = cv2.merge(newChannels).astype(np.uint8)
+        # Convert from BRG to RGB
+        imgConverted = cv2.cvtColor(imgConverted, cv2.COLOR_BGR2RGB)
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+        nLPB, D0LPB = n, D0
+        
+def lowpassGaussianFilter(D0):
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    global nLP, D0LP
+    if itemImgEdit != None:
+        # Get image
+        img = convertPILToCV2(itemImg)
+        # Divide into 3 channels
+        channels = cv2.split(img)
+        newChannels = []
+        # Perform filter on each channel
+        for channel in channels:
+            # Perform filter
+            F = np.fft.fft2(channel)
+            F = np.fft.fftshift(F)
+            M, N = channel.shape
+            
+            u = np.arange(0, M)-M/2
+            v = np.arange(0, N)-N/2
+            [V, U] = np.meshgrid(v, u)
+            D = np.sqrt(np.power(U, 2) + np.power(V, 2))
+            H = np.power(np.e, (-np.power(D, 2)/(2*np.power(int(D0), 2))))
+            G = H*F
+            
+            G = np.fft.ifftshift(G)
+            newChannels.append(np.real(np.fft.ifft2(G)))
+        # Merge channels
+        imgConverted = cv2.merge(newChannels).astype(np.uint8)
+        # Convert from BRG to RGB
+        imgConverted = cv2.cvtColor(imgConverted, cv2.COLOR_BGR2RGB)
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+
+def highpassIdealFilter(D0):
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    if itemImgEdit != None:
+        # Get image
+        img = cv2.cvtColor(convertPILToCV2(itemImg), cv2.COLOR_BGR2GRAY)
+        # Perform filter
+        F = np.fft.fft2(img)
+        F = np.fft.fftshift(F)
+        M, N = img.shape
+        
+        u = np.arange(0, M)-M/2
+        v = np.arange(0, N)-N/2
+        idx = (u > M/2)
+        u[idx] = u[idx] - M
+        idy = (v > N/2)
+        v[idy] = v[idy] - N
+        [V, U] = np.meshgrid(v, u)
+        D = np.sqrt(np.power(U, 2) + np.power(V, 2))
+        H = np.array(D>int(D0), 'float')
+        G = H*F
+        
+        G = np.fft.ifftshift(G)
+        imgConverted = np.real(np.fft.ifft2(G))
+        imgConverted -= np.amin(np.real(np.fft.ifft2(G)))
+        imgConverted *= 255.0/np.amax(imgConverted)
+        
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+
+def highpassButterworthFilter(n, D0):
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    global nLP, D0LP
+    if itemImgEdit != None:
+        # Get image
+        img = cv2.cvtColor(convertPILToCV2(itemImg), cv2.COLOR_BGR2GRAY)
+        # Perform filter
+        F = np.fft.fft2(img)
+        F = np.fft.fftshift(F)
+        M, N = img.shape
+        
+        u = np.arange(0, M)-M/2
+        v = np.arange(0, N)-N/2
+        idx = (u > M/2)
+        u[idx] = u[idx] - M
+        idy = (v > N/2)
+        v[idy] = v[idy] - N
+        [V, U] = np.meshgrid(v, u)
+        D = np.sqrt(np.power(U, 2) + np.power(V, 2))
+        H = 1/np.power(1 + (int(D0)/(D)), (2*int(n)))
+        G = H*F
+        
+        G = np.fft.ifftshift(G)
+        imgConverted = np.real(np.fft.ifft2(G))
+        imgConverted -= np.amin(np.real(np.fft.ifft2(G)))
+        imgConverted *= 255.0/np.amax(imgConverted)
+        
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+        nHPB, D0HPB = n, D0
+        
+def highpassGaussianFilter(D0):
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    if itemImgEdit != None:
+        # Get image
+        img = cv2.cvtColor(convertPILToCV2(itemImg), cv2.COLOR_BGR2GRAY)
+        # Perform filter
+        F = np.fft.fft2(img)
+        F = np.fft.fftshift(F)
+        M, N = img.shape
+        
+        u = np.arange(0, M)-M/2
+        v = np.arange(0, N)-N/2
+        idx = (u > M/2)
+        u[idx] = u[idx] - M
+        idy = (v > N/2)
+        v[idy] = v[idy] - N
+        [V, U] = np.meshgrid(v, u)
+        D = np.sqrt(np.power(U, 2) + np.power(V, 2))
+        H = 1 - np.power(np.e, (-np.power(D, 2)/(2*np.power(int(D0), 2))))
+        G = H*F
+        
+        G = np.fft.ifftshift(G)
+        imgConverted = np.real(np.fft.ifft2(G))
+        imgConverted -= np.amin(np.real(np.fft.ifft2(G)))
+        imgConverted *= 255.0/np.amax(imgConverted)
+        
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+
+####### Classwork 3 ######
+def Classwork3Button():
+    global frameToolboxOuter
+    global frameToolbox
+    
+    # Clear toolbox
+    for widget in frameToolboxOuter.winfo_children():
+        widget.destroy()
+        
+    frameToolbox = Frame(frameToolboxOuter)
+    frameToolbox.columnconfigure(0, weight=1)
+    frameToolboxOuter.create_window((0, 0), window=frameToolbox, anchor='nw', tags='frame')
+    
+    def onFrameConfigure(frameToolboxOuter):
+        '''Reset the scroll region to encompass the inner frame'''
+        frameToolboxOuter.configure(scrollregion=frameToolboxOuter.bbox("all"))
+        frameToolboxOuter.itemconfig('frame', width=frameToolboxOuter.winfo_width()-5)
+    frameToolbox.bind("<Configure>", lambda event, frameToolboxOuter=frameToolboxOuter: onFrameConfigure(frameToolboxOuter))
+
+    # Add erosion
+    createSliderElements("Erosion", ["Kernel size"], erosion, [0], [[1, 200, 1, 1]], 0)
+    # Add dilation
+    createSliderElements("Dilation", ["Kernel size"], dilation, [0], [[1, 200, 1, 1]], 1)
+    # Add opening
+    createSliderElements("Opening", ["Kernel size"], opening, [0], [[1, 200, 1, 1]], 2)
+    # Add closing
+    createSliderElements("Closing", ["Kernel size"], closing, [0], [[1, 200, 1, 1]], 3)
+    # Add boundary extraction
+    createSliderElements("Boundary extraction", ["Kernel size"], boundaryExtraction, [0], [[1, 200, 1, 1]], 4)
+    # Add region filling
+    buttonRF=Button(frameToolbox, text="Region filling", command=lambda: regionFilling())
+    buttonRF.grid(row=5, column=0, sticky="ews")
+    # Add apply button
+    buttonApply=Button(frameToolbox, text="Apply", command=lambda: applyButton())
+    buttonApply.grid(row=10, column=0, sticky="ews")
+    
+    
+def erosion(ksize):
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    ksize = int(ksize)
+    if itemImgEdit != None:
+        # Get image
+        img = convertPILToCV2(itemImg)
+        if img.dtype != bool:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            retval, img = cv2.threshold(img, 100, 255, cv2.THRESH_BINARY)
+        else:
+            img = img.astype(np.uint8) * 255
+        # Perform erosion
+        kernel = np.ones((ksize, ksize), np.uint8)
+        imgConverted = cv2.erode(img, kernel)
+        # Convert from BRG to RGB
+        # imgConverted = cv2.cvtColor(imgConverted, cv2.COLOR_BGR2RGB)
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+        
+def dilation(ksize):
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    ksize = int(ksize)
+    if itemImgEdit != None:
+        # Get image
+        img = convertPILToCV2(itemImg)
+        if img.dtype != bool:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            retval, img = cv2.threshold(img, 100, 255, cv2.THRESH_BINARY)
+        else:
+            img = img.astype(np.uint8) * 255
+        # Perform dilation
+        kernel = np.ones((ksize, ksize), np.uint8)
+        imgConverted = cv2.dilate(img, kernel)
+        # Convert from BRG to RGB
+        # imgConverted = cv2.cvtColor(imgConverted, cv2.COLOR_BGR2RGB)
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+        
+def opening(ksize):
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    ksize = int(ksize)
+    if itemImgEdit != None:
+        # Get image
+        img = convertPILToCV2(itemImg)
+        if img.dtype != bool:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            retval, img = cv2.threshold(img, 100, 255, cv2.THRESH_BINARY)
+        else:
+            img = img.astype(np.uint8) * 255
+        # Perform opening
+        kernel = np.ones((ksize, ksize), np.uint8)
+        imgConverted = cv2.morphologyEx(img, cv2.MORPH_OPEN, kernel)
+        # Convert from BRG to RGB
+        imgConverted = cv2.cvtColor(imgConverted, cv2.COLOR_BGR2RGB)
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+        
+def closing(ksize):
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    ksize = int(ksize)
+    if itemImgEdit != None:
+        # Get image
+        img = convertPILToCV2(itemImg)
+        if img.dtype != bool:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            retval, img = cv2.threshold(img, 100, 255, cv2.THRESH_BINARY)
+        else:
+            img = img.astype(np.uint8) * 255
+        # Perform closing
+        kernel = np.ones((ksize, ksize), np.uint8)
+        imgConverted = cv2.morphologyEx(img, cv2.MORPH_CLOSE, kernel)
+        # Convert from BRG to RGB
+        # imgConverted = cv2.cvtColor(imgConverted, cv2.COLOR_BGR2RGB)
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+        
+def boundaryExtraction(ksize):
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    ksize = int(ksize)
+    if itemImgEdit != None:
+        # Get image
+        img = convertPILToCV2(itemImg)
+        if img.dtype != bool:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            retval, img = cv2.threshold(img, 100, 255, cv2.THRESH_BINARY)
+        else:
+            img = img.astype(np.uint8) * 255
+        # Perform boundary extraction
+        kernel = np.ones((ksize, ksize), np.uint8)
+        eroded = cv2.erode(img, kernel)
+        imgConverted = cv2.subtract(img, eroded)
+        # Convert from BRG to RGB
+        # imgConverted = cv2.cvtColor(imgConverted, cv2.COLOR_BGR2RGB)
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil     
+
+def regionFilling():
+    global labelImage
+    global itemImg
+    global itemImgEdit
+    global breakLoop
+    if itemImgEdit != None:
+        # Get image
+        img = convertPILToCV2(itemImg)
+        if img.dtype != bool:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            retval, img = cv2.threshold(img, 100, 255, cv2.THRESH_BINARY)
+        else:
+            img = img.astype(np.uint8) * 255
+        # Perform region filling
+        imgConverted = img.copy()
+        contours, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        print("aaaaaaaaaaaaa" + str(len(contours)))
+        if len(contours) > 0:
+            cv2.drawContours(imgConverted, contours, -1, (255,), cv2.FILLED)
+        # Convert from BRG to RGB
+        # imgConverted = cv2.cvtColor(imgConverted, cv2.COLOR_BGR2RGB)
+        # Save image
+        itemImgEdit = Image.fromarray(imgConverted)
+        # Convert to Pillow image
+        imgPil = convertRawToTk(Image.fromarray(imgConverted))
+        # Show Image
+        labelImage.configure(image=imgPil)
+        labelImage.image=imgPil
+
+def applyButton():
+    global itemImg
+    global itemImgEdit
+    itemImg = itemImgEdit
+    
+####### Homework 3 ######
+def Homework3Button():
+    global frameToolboxOuter
+    global frameToolbox
+    
+    # Clear toolbox
+    for widget in frameToolboxOuter.winfo_children():
+        widget.destroy()
+        
+    frameToolbox = Frame(frameToolboxOuter)
+    frameToolbox.columnconfigure(0, weight=1)
+    frameToolboxOuter.create_window((0, 0), window=frameToolbox, anchor='nw', tags='frame')
+    
+    def onFrameConfigure(frameToolboxOuter):
+        '''Reset the scroll region to encompass the inner frame'''
+        frameToolboxOuter.configure(scrollregion=frameToolboxOuter.bbox("all"))
+        frameToolboxOuter.itemconfig('frame', width=frameToolboxOuter.winfo_width()-5)
+    frameToolbox.bind("<Configure>", lambda event, frameToolboxOuter=frameToolboxOuter: onFrameConfigure(frameToolboxOuter))
+    
+    # Add HW3-1 Button
+    buttonHW31=Button(frameToolbox, text="HW3-1", command=lambda: HW31())
+    buttonHW31.grid(row=0, column=0, sticky="ews")
+    # Add HW3-2 1 pass Button
+    buttonHW32_1=Button(frameToolbox, text="HW3-2: 1 pass", command=lambda: HW32_1pass())
+    buttonHW32_1.grid(row=1, column=0, sticky="ews")
+    # Add HW3-2 10 pass Button
+    buttonHW32_10=Button(frameToolbox, text="HW3-2: 10 pass", command=lambda: HW32_10pass())
+    buttonHW32_10.grid(row=2, column=0, sticky="ews")
+    # Add HW3-2 100 pass Button
+    buttonHW32_100=Button(frameToolbox, text="HW3-2: 100 pass", command=lambda: HW32_100pass())
+    buttonHW32_100.grid(row=3, column=0, sticky="ews")
+    
+def HW31():
+    global itemImg
+    itemSave = itemImg
+    lowpassGaussianFilter(25)
+    applyButton()
+    highpassGaussianFilter(25)
+    itemImg = itemSave
+    
+def HW32_1pass():
+    highpassGaussianFilter(30)
+    
+def HW32_10pass():
+    global itemImg
+    itemSave = itemImg
+    for i in range(10):
+        highpassGaussianFilter(30)
+        applyButton()
+    itemImg = itemSave
+        
+    
+def HW32_100pass():
+    global itemImg
+    itemSave = itemImg
+    for i in range(100):
+        highpassGaussianFilter(30)
+        applyButton()
+    itemImg = itemSave
+    
+    
+
 ####### Main ######
 if __name__ == "__main__":
     # Variable for storing file path
@@ -703,7 +1250,7 @@ if __name__ == "__main__":
     root.state('zoomed')
      
     # Column and row amount
-    row = 4
+    row = 6
     column = 4
     
     # Resize columns and rows
@@ -744,6 +1291,15 @@ if __name__ == "__main__":
     # Homework 2 button
     buttonHomework2=Button(root, text="Homework 2", command=lambda: Homework2Button())
     buttonHomework2.grid(row=3, column=1, sticky="news")
+    # Homework 3 button
+    buttonHomework3=Button(root, text="Homework 3", command=lambda: Homework3Button())
+    buttonHomework3.grid(row=4, column=0, sticky="news")
+    # Class work 2 button
+    buttonClasswork2=Button(root, text="Classwork 2", command=lambda: Classwork2Button())
+    buttonClasswork2.grid(row=5, column=0, sticky="news")
+    # Class work 3 button
+    buttonClasswork2=Button(root, text="Classwork 3", command=lambda: Classwork3Button())
+    buttonClasswork2.grid(row=5, column=1, sticky="news")
     
     #Toolbox
     frameToolboxContainer= Frame(root, borderwidth=1, relief='solid')
