@@ -995,7 +995,7 @@ def Classwork3Button():
     buttonApply.grid(row=10, column=0, sticky="ews")
     
     
-def erosion(ksize):
+def erosion(ksize=1, kernel=[]):
     global labelImage
     global itemImg
     global itemImgEdit
@@ -1010,7 +1010,8 @@ def erosion(ksize):
         else:
             img = img.astype(np.uint8) * 255
         # Perform erosion
-        kernel = np.ones((ksize, ksize), np.uint8)
+        if (len(kernel) == 0):
+            kernel = np.ones((ksize, ksize), np.uint8)
         imgConverted = cv2.erode(img, kernel)
         # Convert from BRG to RGB
         # imgConverted = cv2.cvtColor(imgConverted, cv2.COLOR_BGR2RGB)
@@ -1022,7 +1023,7 @@ def erosion(ksize):
         labelImage.configure(image=imgPil)
         labelImage.image=imgPil
         
-def dilation(ksize):
+def dilation(ksize=1, kernel=[]):
     global labelImage
     global itemImg
     global itemImgEdit
@@ -1037,7 +1038,8 @@ def dilation(ksize):
         else:
             img = img.astype(np.uint8) * 255
         # Perform dilation
-        kernel = np.ones((ksize, ksize), np.uint8)
+        if (len(kernel) == 0):
+            kernel = np.ones((ksize, ksize), np.uint8)
         imgConverted = cv2.dilate(img, kernel)
         # Convert from BRG to RGB
         # imgConverted = cv2.cvtColor(imgConverted, cv2.COLOR_BGR2RGB)
@@ -1225,7 +1227,39 @@ def HW32_100pass():
         applyButton()
     itemImg = itemSave
     
+####### Homework 4 ######
+def Homework4Button():
+    global frameToolboxOuter
+    global frameToolbox
     
+    # Clear toolbox
+    for widget in frameToolboxOuter.winfo_children():
+        widget.destroy()
+        
+    frameToolbox = Frame(frameToolboxOuter)
+    frameToolbox.columnconfigure(0, weight=1)
+    frameToolboxOuter.create_window((0, 0), window=frameToolbox, anchor='nw', tags='frame')
+    
+    def onFrameConfigure(frameToolboxOuter):
+        '''Reset the scroll region to encompass the inner frame'''
+        frameToolboxOuter.configure(scrollregion=frameToolboxOuter.bbox("all"))
+        frameToolboxOuter.itemconfig('frame', width=frameToolboxOuter.winfo_width()-5)
+    frameToolbox.bind("<Configure>", lambda event, frameToolboxOuter=frameToolboxOuter: onFrameConfigure(frameToolboxOuter))
+    
+    kernel = np.zeros((3, 3), np.uint8)
+    for i in range(3):
+        kernel[i][i] = 1
+    # Add Erode button
+    buttonErode=Button(frameToolbox, text="Erosion", command=lambda: erosion(kernel=kernel))
+    buttonErode.grid(row=0, column=0, sticky="ews")
+    # Add Dilate Button
+    buttonDilate=Button(frameToolbox, text="Dilation", command=lambda: dilation(kernel=kernel))
+    buttonDilate.grid(row=1, column=0, sticky="ews")
+    # Add boundary extraction
+    createSliderElements("Boundary extraction", ["Kernel size"], boundaryExtraction, [0], [[1, 200, 1, 1]], 2)
+    # Add apply button
+    buttonApply=Button(frameToolbox, text="Apply", command=lambda: applyButton())
+    buttonApply.grid(row=10, column=0, sticky="ews")
 
 ####### Main ######
 if __name__ == "__main__":
@@ -1294,6 +1328,9 @@ if __name__ == "__main__":
     # Homework 3 button
     buttonHomework3=Button(root, text="Homework 3", command=lambda: Homework3Button())
     buttonHomework3.grid(row=4, column=0, sticky="news")
+    # Homework 4 button
+    buttonHomework4=Button(root, text="Homework 4", command=lambda: Homework4Button())
+    buttonHomework4.grid(row=4, column=1, sticky="news")
     # Class work 2 button
     buttonClasswork2=Button(root, text="Classwork 2", command=lambda: Classwork2Button())
     buttonClasswork2.grid(row=5, column=0, sticky="news")
